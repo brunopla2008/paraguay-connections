@@ -764,10 +764,33 @@ async function rLotes(){
   try{
     const [lotes,proyectos]=await Promise.all([api('GET','/lotes'),api('GET','/proyectos')]);
     loteData=lotes; prData=proyectos;
-    const cols={disponible:'disp',vendido:'vend',en_mora:'mora',reservado:'res',recuperado:'res'};
     const labels={disponible:'Disponible',vendido:'Vendido',en_mora:'En mora',reservado:'Reservado',recuperado:'Recuperado'};
     const badges={disponible:'bgr',vendido:'bb',en_mora:'br',reservado:'ba',recuperado:'bg'};
-    setC(`
+    const bcolors={disponible:'#16a34a',vendido:'#2563eb',en_mora:'#dc2626',reservado:'#d97706',recuperado:'#9ca3af'};
+    const isMob=window.innerWidth<768;
+    setC(isMob ? `
+      ${lotes.length===0?'<div class="empty"><p>Sin lotes registrados</p></div>':''}
+      ${lotes.map(l=>`
+        <div class="card" style="border-left:4px solid ${bcolors[l.estado]||'#9ca3af'}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div>
+              <div style="font-size:16px;font-weight:700">Lote ${l.numero} — Mza ${l.manzana}</div>
+              <div class="ts tm">${l.proyecto_nombre}</div>
+            </div>
+            <span class="badge ${badges[l.estado]||'bg'}">${labels[l.estado]||l.estado}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+            <div><div class="sl">Superficie</div><div class="fw ts">${l.superficie_m2||'—'} m²</div></div>
+            <div><div class="sl">Precio financiado</div><div class="fw ts">${GS(l.precio_financiado)}</div></div>
+            <div><div class="sl">Precio contado</div><div class="fw ts">${GS(l.precio_contado)}</div></div>
+            <div><div class="sl">Cliente</div><div class="fw ts">${l.cliente_nombre||'—'}</div></div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm" style="flex:1;justify-content:center" onclick="abrirModalLote(${l.id})">✏️ Editar</button>
+            <button class="btn btn-sm btn-danger" style="flex:1;justify-content:center" onclick="eliminarLote(${l.id},'${l.numero}')">🗑 Eliminar</button>
+          </div>
+        </div>`).join('')}
+    ` : `
       <div class="card">
         <div class="tw"><table><thead><tr><th>N°</th><th>Manzana</th><th>Proyecto</th><th>Superficie</th><th>Precio financiado</th><th>Cliente</th><th>Estado</th><th></th></tr></thead><tbody>
         ${lotes.map(l=>`<tr>
@@ -778,15 +801,15 @@ async function rLotes(){
           <td class="ts">${l.cliente_nombre||'<span class="tm">—</span>'}</td>
           <td><span class="badge ${badges[l.estado]||'bg'}">${labels[l.estado]||l.estado}</span></td>
           <td style="white-space:nowrap">
-            <button class="btn btn-sm" onclick="abrirModalLote(${l.id})" title="Editar">✏️</button>
-            <button class="btn btn-sm btn-danger" onclick="eliminarLote(${l.id},'${l.numero}')" title="Eliminar">🗑</button>
+            <button class="btn btn-sm" onclick="abrirModalLote(${l.id})">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="eliminarLote(${l.id},'${l.numero}')">🗑</button>
           </td>
         </tr>`).join('')}
-        ${lotes.length===0?'<tr><td colspan="8"><div class="empty">Sin lotes registrados</div></td></tr>':''}
+        ${lotes.length===0?'<tr><td colspan="8"><div class="empty">Sin lotes</div></td></tr>':''}
         </tbody></table></div>
       </div>
     `);
-  }catch(e){setC(`<div class="alert ar">${e.message}</div>`)}
+  }catch(e){setC(`<div class="alert ar">${e.message}</div>`);}
 }
 
 async function verLotesProy(pid,nombre){
@@ -889,32 +912,55 @@ function eliminarLote(id,num){
 // ── CLIENTES ─────────────────────────────────────────────────────────────────
 async function rCli(q=''){
   setA(`
-    <div class="sw">🔍<input placeholder="Nombre, cédula, celular..." oninput="rCli(this.value)" value="${q}"></div>
-    <button class="btn btn-primary" onclick="abrirModalCli()">+ Nuevo cliente</button>
+    <div class="sw">🔍<input placeholder="Buscar..." oninput="rCli(this.value)" value="${q}"></div>
+    <button class="btn btn-primary" onclick="abrirModalCli()">+ Nuevo</button>
   `);
   try{
     cliData=await api('GET','/clientes?q='+encodeURIComponent(q));
-    setC(`
+    const isMob=window.innerWidth<768;
+    setC(isMob ? `
+      ${cliData.length===0?'<div class="empty">No se encontraron clientes</div>':''}
+      ${cliData.map(c=>`
+        <div class="card">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <div class="av" style="width:40px;height:40px;font-size:14px;flex-shrink:0">${ini(c.nombre)}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:15px">${c.nombre}</div>
+              <div class="ts tm">CI: ${c.cedula}</div>
+            </div>
+            ${c.contratos_en_mora>0?'<span class="badge br">Mora</span>':c.total_contratos>0?'<span class="badge bgr">Al día</span>':'<span class="badge bg">Sin contrato</span>'}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+            <div><div class="sl">Celular</div><div class="fw ts">${c.celular}</div></div>
+            <div><div class="sl">Ciudad</div><div class="fw ts">${c.ciudad||'—'}</div></div>
+            <div><div class="sl">Contratos</div><div class="fw ts">${c.total_contratos||0}</div></div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm" style="flex:1;justify-content:center" onclick="verCliente(${c.id})">👁 Ver</button>
+            <button class="btn btn-sm" style="flex:1;justify-content:center" onclick="abrirModalCli(${c.id})">✏️ Editar</button>
+            <button class="btn btn-sm btn-danger" style="flex:0;padding:6px 10px" onclick="eliminarCliente(${c.id},'${c.nombre.replace(/'/g,"\'")}')">🗑</button>
+          </div>
+        </div>`).join('')}
+    ` : `
       <div class="card">
         <div class="tw"><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Ciudad</th><th>Contratos</th><th>Estado</th><th></th></tr></thead><tbody>
         ${cliData.map(c=>`<tr>
           <td><div style="display:flex;align-items:center;gap:8px"><div class="av">${ini(c.nombre)}</div><strong>${c.nombre}</strong></div></td>
-          <td class="tm ts">${c.cedula}</td>
-          <td>${c.celular}</td>
+          <td class="tm ts">${c.cedula}</td><td>${c.celular}</td>
           <td class="ts">${c.ciudad||'—'}</td>
           <td>${c.total_contratos||0}</td>
           <td>${c.contratos_en_mora>0?'<span class="badge br">Con mora</span>':c.total_contratos>0?'<span class="badge bgr">Al día</span>':'<span class="badge bg">Sin contrato</span>'}</td>
           <td style="white-space:nowrap">
             <button class="btn btn-sm" onclick="verCliente(${c.id})">👁 Ver</button>
             <button class="btn btn-sm" onclick="abrirModalCli(${c.id})">✏️</button>
-            <button class="btn btn-sm btn-danger" onclick="eliminarCliente(${c.id},'${c.nombre.replace(/'/g,"\\'")}')">🗑</button>
+            <button class="btn btn-sm btn-danger" onclick="eliminarCliente(${c.id},'${c.nombre.replace(/'/g,"\'")}')">🗑</button>
           </td>
         </tr>`).join('')}
         ${cliData.length===0?'<tr><td colspan="7"><div class="empty">No se encontraron clientes</div></td></tr>':''}
-        </tbody></table>
+        </tbody></table></div>
       </div>
     `);
-  }catch(e){setC(`<div class="alert ar">${e.message}</div>`)}
+  }catch(e){setC(`<div class="alert ar">${e.message}</div>`);}
 }
 
 function abrirModalCli(id=null){
@@ -1032,22 +1078,46 @@ function vcTab(tab,id,el){
 
 // ── CONTRATOS ─────────────────────────────────────────────────────────────────
 async function rCont(){
-  setA(`<button class="btn btn-primary" onclick="abrirModalCont()"><span>+</span><span> Nuevo contrato</span></button>`);
+  setA(`<button class="btn btn-primary" onclick="abrirModalCont()">+ Nuevo contrato</button>`);
   try{
     const data=await api('GET','/contratos');
     const bs={vigente:'bgr',en_mora:'br',cancelado:'bg',finalizado:'bb',rescindido:'ba'};
-    setC(`<div class="card"><div class="tw"><table><thead><tr><th>N°</th><th>Cliente</th><th>Proyecto/Lote</th><th>Precio total</th><th>Cuota base</th><th>Cuotas</th><th>Estado</th><th></th></tr></thead><tbody>
-    ${data.map(c=>`<tr>
-      <td><strong>#${c.id}</strong></td>
-      <td>${c.cliente_nombre}<br><span class="tm ts">${c.cedula}</span></td>
-      <td class="ts">${c.proyecto_nombre}<br>Mza ${c.manzana} N°${c.lote_numero}</td>
-      <td>${GS(c.precio_total)}</td><td>${GS(c.cuota_base)}</td><td>${c.cantidad_cuotas}</td>
-      <td><span class="badge ${bs[c.estado]||'bg'}">${c.estado}</span></td>
-      <td><button class="btn btn-sm btn-primary" onclick="verContrato(${c.id})">Ver</button></td>
-    </tr>`).join('')}
-    ${data.length===0?'<tr><td colspan="8"><div class="empty">Sin contratos</div></td></tr>':''}
-    </tbody></table></div></div>`);
-  }catch(e){setC(`<div class="alert ar">${e.message}</div>`)}
+    const isMob=window.innerWidth<768;
+    setC(isMob ? `
+      ${data.length===0?'<div class="empty">Sin contratos registrados</div>':''}
+      ${data.map(c=>`
+        <div class="card" style="border-left:4px solid ${c.estado==='en_mora'?'#dc2626':c.estado==='vigente'?'#16a34a':'#9ca3af'}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div>
+              <div style="font-weight:700;font-size:15px">${c.cliente_nombre}</div>
+              <div class="ts tm">CI: ${c.cedula}</div>
+            </div>
+            <span class="badge ${bs[c.estado]||'bg'}">${c.estado}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+            <div><div class="sl">Proyecto</div><div class="fw ts">${c.proyecto_nombre}</div></div>
+            <div><div class="sl">Lote</div><div class="fw ts">Mza ${c.manzana} N°${c.lote_numero}</div></div>
+            <div><div class="sl">Precio total</div><div class="fw ts">${GS(c.precio_total)}</div></div>
+            <div><div class="sl">Cuota base</div><div class="fw ts">${GS(c.cuota_base)}</div></div>
+            <div><div class="sl">Cuotas</div><div class="fw ts">${c.cantidad_cuotas} meses</div></div>
+            <div><div class="sl">Firma</div><div class="fw ts">${fd(c.fecha_firma)}</div></div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="verContrato(${c.id})">👁 Ver cuotas y pagos</button>
+        </div>`).join('')}
+    ` : `
+      <div class="card"><div class="tw"><table><thead><tr><th>N°</th><th>Cliente</th><th>Proyecto/Lote</th><th>Precio total</th><th>Cuota base</th><th>Cuotas</th><th>Estado</th><th></th></tr></thead><tbody>
+      ${data.map(c=>`<tr>
+        <td><strong>#${c.id}</strong></td>
+        <td>${c.cliente_nombre}<br><span class="tm ts">${c.cedula}</span></td>
+        <td class="ts">${c.proyecto_nombre}<br>Mza ${c.manzana} N°${c.lote_numero}</td>
+        <td>${GS(c.precio_total)}</td><td>${GS(c.cuota_base)}</td><td>${c.cantidad_cuotas}</td>
+        <td><span class="badge ${bs[c.estado]||'bg'}">${c.estado}</span></td>
+        <td><button class="btn btn-sm btn-primary" onclick="verContrato(${c.id})">Ver</button></td>
+      </tr>`).join('')}
+      ${data.length===0?'<tr><td colspan="8"><div class="empty">Sin contratos</div></td></tr>':''}
+      </tbody></table></div></div>
+    `);
+  }catch(e){setC(`<div class="alert ar">${e.message}</div>`);}
 }
 
 async function abrirModalCont(){
